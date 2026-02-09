@@ -1,0 +1,14 @@
+{
+    "custom/zen-cal": {
+        "format": "{icon} {text}",
+        "format-icons": {
+            "has-events": "󰃭",
+            "no-events": "󰃮"
+        },
+        "exec": "zen-cal --waybar",
+        "return-type": "json",
+        "tooltip": true,
+        "on-click": "kitty --class TUI.zencal -e zen-cal",
+        "interval": 60
+    }
+}
