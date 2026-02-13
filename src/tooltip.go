@@ -3,10 +3,20 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 )
+
+// pangoVisibleLength calculates the visible text length by stripping Pango markup tags
+func pangoVisibleLength(s string) int {
+	// Remove all <span ...> and </span> tags
+	re := regexp.MustCompile(`<[^>]+>`)
+	visible := re.ReplaceAllString(s, "")
+	// Count runes to handle emojis properly
+	return len([]rune(visible))
+}
 
 // RunTooltipMode outputs a Pango markup version of the calendar for Waybar tooltips
 func RunTooltipMode() {
@@ -34,71 +44,20 @@ func RunTooltipMode() {
 	}
 
 	// Build calendar output
-	var output strings.Builder
-
-	// Title
-	output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><b>%s %d</b></span>\n\n",
-		text, month.String(), year))
-
-	// Weekday headers
-	headers := []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
-	for i, header := range headers {
-		color := headings
-		if i == 0 || i == 6 {
-			color = weekends
-		}
-		output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><i>%s</i></span> ", color, header))
-	}
-	output.WriteString("\n")
-
-	// Get month info
-	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
-	firstWeekday := int(firstDay.Weekday())
-	lastDay := firstDay.AddDate(0, 1, -1).Day()
-
-	// Build calendar grid
-	currWeekDay := firstWeekday
-
-	// Leading spaces
-	for i := 0; i < currWeekDay; i++ {
-		output.WriteString("   ")
-	}
-
-	// Days
-	for d := 1; d <= lastDay; d++ {
-		if currWeekDay%7 == 0 && d != 1 {
-			output.WriteString("\n")
-		}
-
-		dayStr := fmt.Sprintf("%2d", d)
-		isToday := d == day
-		isWeekend := currWeekDay%7 == 0 || currWeekDay%7 == 6
-		eventCal := getEventCalendarOnDayForTooltip(d, month, year, events, holidays, calendars, showHolidays)
-
-		if isToday {
-			// Today - highlighted with background
-			output.WriteString(fmt.Sprintf("<span background=\"%s\" foreground=\"%s\"><b>%s</b></span> ",
-				today, "#1e1e2e", dayStr))
-		} else if eventCal != nil {
-			// Day with event - use calendar color
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><u>%s</u></span> ",
-				eventCal.Color, dayStr))
-		} else if isWeekend {
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", weekends, dayStr))
-		} else {
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", text, dayStr))
-		}
-
-		currWeekDay++
-	}
-	output.WriteString("\n")
-
-	// Get upcoming events (next 3)
+	// Get upcoming events (next 3) - build these first to calculate max width
 	todayDate := time.Date(year, month, day, 0, 0, 0, 0, time.Local)
 	upcomingEvents := getUpcomingEventsForTooltip(todayDate, events, holidays, showHolidays, 3)
 
+	// Build upcoming events lines and calculate max width
+	var eventLines []string
+	maxEventWidth := 0
+
 	if len(upcomingEvents) > 0 {
-		output.WriteString(fmt.Sprintf("\n<span foreground=\"%s\"><b>Upcoming Events</b></span>\n", headings))
+		headerLine := fmt.Sprintf("<span foreground=\"%s\"><b>Upcoming Events</b></span>", headings)
+		eventLines = append(eventLines, headerLine)
+		if w := pangoVisibleLength(headerLine); w > maxEventWidth {
+			maxEventWidth = w
+		}
 
 		for _, event := range upcomingEvents {
 			// Get calendar color
@@ -131,11 +90,99 @@ func RunTooltipMode() {
 			// Date string for upcoming events
 			dateStr := event.Date.Format("Jan 02")
 
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">●</span> <span foreground=\"%s\">%s %s</span> %s%s%s\n",
-				calColor, headings, dateStr, timeStr, prefix, event.Title, fbStr))
+			line := fmt.Sprintf("<span foreground=\"%s\">●</span> <span foreground=\"%s\">%s %s</span> %s%s%s",
+				calColor, headings, dateStr, timeStr, prefix, event.Title, fbStr)
+			eventLines = append(eventLines, line)
+			if w := pangoVisibleLength(line); w > maxEventWidth {
+				maxEventWidth = w
+			}
 		}
 	} else {
-		output.WriteString(fmt.Sprintf("\n<span foreground=\"%s\" style=\"italic\">No upcoming events</span>\n", text))
+		line := fmt.Sprintf("<span foreground=\"%s\" style=\"italic\">No upcoming events</span>", text)
+		eventLines = append(eventLines, line)
+		if w := pangoVisibleLength(line); w > maxEventWidth {
+			maxEventWidth = w
+		}
+	}
+
+	// Calculate padding to center the 21-char calendar within the max event width
+	calendarWidth := 21
+	calendarPadding := ""
+	if maxEventWidth > calendarWidth {
+		padAmount := (maxEventWidth - calendarWidth) / 2
+		calendarPadding = strings.Repeat(" ", padAmount)
+	}
+
+	var output strings.Builder
+
+	// Title - centered over the calendar grid
+	titleText := fmt.Sprintf("%s %d", month.String(), year)
+	titlePadding := (calendarWidth - len(titleText)) / 2
+	if titlePadding < 0 {
+		titlePadding = 0
+	}
+	output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><b>%s%s</b></span>\n\n",
+		text, calendarPadding+strings.Repeat(" ", titlePadding), titleText))
+
+	// Weekday headers
+	headers := []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
+	output.WriteString(calendarPadding)
+	for i, header := range headers {
+		color := headings
+		if i == 0 || i == 6 {
+			color = weekends
+		}
+		output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><i>%s</i></span> ", color, header))
+	}
+	output.WriteString("\n")
+
+	// Get month info
+	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+	firstWeekday := int(firstDay.Weekday())
+	lastDay := firstDay.AddDate(0, 1, -1).Day()
+
+	// Build calendar grid
+	currWeekDay := firstWeekday
+
+	// Leading spaces (with calendar padding for first row)
+	output.WriteString(calendarPadding)
+	for i := 0; i < currWeekDay; i++ {
+		output.WriteString("   ")
+	}
+
+	// Days
+	for d := 1; d <= lastDay; d++ {
+		if currWeekDay%7 == 0 && d != 1 {
+			output.WriteString("\n" + calendarPadding)
+		}
+
+		dayStr := fmt.Sprintf("%2d", d)
+		isToday := d == day
+		isWeekend := currWeekDay%7 == 0 || currWeekDay%7 == 6
+		eventCal := getEventCalendarOnDayForTooltip(d, month, year, events, holidays, calendars, showHolidays)
+
+		if isToday {
+			// Today - highlighted with background
+			output.WriteString(fmt.Sprintf("<span background=\"%s\" foreground=\"%s\"><b>%s</b></span> ",
+				today, "#1e1e2e", dayStr))
+		} else if eventCal != nil {
+			// Day with event - use calendar color
+			output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><u>%s</u></span> ",
+				eventCal.Color, dayStr))
+		} else if isWeekend {
+			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", weekends, dayStr))
+		} else {
+			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", text, dayStr))
+		}
+
+		currWeekDay++
+	}
+	output.WriteString("\n")
+
+	// Output the pre-built event lines
+	output.WriteString("\n")
+	for _, line := range eventLines {
+		output.WriteString(line + "\n")
 	}
 
 	fmt.Print(output.String())
@@ -293,69 +340,20 @@ func buildTooltipString(year int, month time.Month, day int) string {
 	}
 
 	// Build calendar output
-	var output strings.Builder
-
-	// Title
-	output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><b>%s %d</b></span>\n\n",
-		text, month.String(), year))
-
-	// Weekday headers
-	headers := []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
-	for i, header := range headers {
-		color := headings
-		if i == 0 || i == 6 {
-			color = weekends
-		}
-		output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><i>%s</i></span> ", color, header))
-	}
-	output.WriteString("\n")
-
-	// Get month info
-	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
-	firstWeekday := int(firstDay.Weekday())
-	lastDay := firstDay.AddDate(0, 1, -1).Day()
-
-	// Build calendar grid
-	currWeekDay := firstWeekday
-
-	// Leading spaces
-	for i := 0; i < currWeekDay; i++ {
-		output.WriteString("   ")
-	}
-
-	// Days
-	for d := 1; d <= lastDay; d++ {
-		if currWeekDay%7 == 0 && d != 1 {
-			output.WriteString("\n")
-		}
-
-		dayStr := fmt.Sprintf("%2d", d)
-		isToday := d == day
-		isWeekend := currWeekDay%7 == 0 || currWeekDay%7 == 6
-		eventCal := getEventCalendarOnDayForTooltip(d, month, year, events, holidays, calendars, showHolidays)
-
-		if isToday {
-			output.WriteString(fmt.Sprintf("<span background=\"%s\" foreground=\"%s\"><b>%s</b></span> ",
-				today, "#1e1e2e", dayStr))
-		} else if eventCal != nil {
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><u>%s</u></span> ",
-				eventCal.Color, dayStr))
-		} else if isWeekend {
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", weekends, dayStr))
-		} else {
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", text, dayStr))
-		}
-
-		currWeekDay++
-	}
-	output.WriteString("\n")
-
-	// Get upcoming events (next 3)
+	// Get upcoming events (next 3) - build these first to calculate max width
 	todayDate := time.Date(year, month, day, 0, 0, 0, 0, time.Local)
 	upcomingEvents := getUpcomingEventsForTooltip(todayDate, events, holidays, showHolidays, 3)
 
+	// Build upcoming events lines and calculate max width
+	var eventLines []string
+	maxEventWidth := 0
+
 	if len(upcomingEvents) > 0 {
-		output.WriteString(fmt.Sprintf("\n<span foreground=\"%s\"><b>Upcoming Events</b></span>\n", headings))
+		headerLine := fmt.Sprintf("<span foreground=\"%s\"><b>Upcoming Events</b></span>", headings)
+		eventLines = append(eventLines, headerLine)
+		if w := pangoVisibleLength(headerLine); w > maxEventWidth {
+			maxEventWidth = w
+		}
 
 		for _, event := range upcomingEvents {
 			calColor := string(text)
@@ -384,11 +382,97 @@ func buildTooltipString(year int, month time.Month, day int) string {
 			// Date string for upcoming events
 			dateStr := event.Date.Format("Jan 02")
 
-			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">●</span> <span foreground=\"%s\">%s %s</span> %s%s%s\n",
-				calColor, headings, dateStr, timeStr, prefix, event.Title, fbStr))
+			line := fmt.Sprintf("<span foreground=\"%s\">●</span> <span foreground=\"%s\">%s %s</span> %s%s%s",
+				calColor, headings, dateStr, timeStr, prefix, event.Title, fbStr)
+			eventLines = append(eventLines, line)
+			if w := pangoVisibleLength(line); w > maxEventWidth {
+				maxEventWidth = w
+			}
 		}
 	} else {
-		output.WriteString(fmt.Sprintf("\n<span foreground=\"%s\" style=\"italic\">No upcoming events</span>\n", text))
+		line := fmt.Sprintf("<span foreground=\"%s\" style=\"italic\">No upcoming events</span>", text)
+		eventLines = append(eventLines, line)
+		if w := pangoVisibleLength(line); w > maxEventWidth {
+			maxEventWidth = w
+		}
+	}
+
+	// Calculate padding to center the 21-char calendar within the max event width
+	calendarWidth := 21
+	calendarPadding := ""
+	if maxEventWidth > calendarWidth {
+		padAmount := (maxEventWidth - calendarWidth) / 2
+		calendarPadding = strings.Repeat(" ", padAmount)
+	}
+
+	var output strings.Builder
+
+	// Title - centered over the calendar grid
+	titleText := fmt.Sprintf("%s %d", month.String(), year)
+	titlePadding := (calendarWidth - len(titleText)) / 2
+	if titlePadding < 0 {
+		titlePadding = 0
+	}
+	output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><b>%s%s</b></span>\n\n",
+		text, calendarPadding+strings.Repeat(" ", titlePadding), titleText))
+
+	// Weekday headers
+	headers := []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
+	output.WriteString(calendarPadding)
+	for i, header := range headers {
+		color := headings
+		if i == 0 || i == 6 {
+			color = weekends
+		}
+		output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><i>%s</i></span> ", color, header))
+	}
+	output.WriteString("\n")
+
+	// Get month info
+	firstDay := time.Date(year, month, 1, 0, 0, 0, 0, time.Local)
+	firstWeekday := int(firstDay.Weekday())
+	lastDay := firstDay.AddDate(0, 1, -1).Day()
+
+	// Build calendar grid
+	currWeekDay := firstWeekday
+
+	// Leading spaces (with calendar padding for first row)
+	output.WriteString(calendarPadding)
+	for i := 0; i < currWeekDay; i++ {
+		output.WriteString("   ")
+	}
+
+	// Days
+	for d := 1; d <= lastDay; d++ {
+		if currWeekDay%7 == 0 && d != 1 {
+			output.WriteString("\n" + calendarPadding)
+		}
+
+		dayStr := fmt.Sprintf("%2d", d)
+		isToday := d == day
+		isWeekend := currWeekDay%7 == 0 || currWeekDay%7 == 6
+		eventCal := getEventCalendarOnDayForTooltip(d, month, year, events, holidays, calendars, showHolidays)
+
+		if isToday {
+			output.WriteString(fmt.Sprintf("<span background=\"%s\" foreground=\"%s\"><b>%s</b></span> ",
+				today, "#1e1e2e", dayStr))
+		} else if eventCal != nil {
+			output.WriteString(fmt.Sprintf("<span foreground=\"%s\"><u>%s</u></span> ",
+				eventCal.Color, dayStr))
+		} else if isWeekend {
+			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", weekends, dayStr))
+		} else {
+			output.WriteString(fmt.Sprintf("<span foreground=\"%s\">%s</span> ", text, dayStr))
+		}
+
+		currWeekDay++
+	}
+	output.WriteString("\n")
+
+	// Output the pre-built event lines
+	output.WriteString("\n")
+	for _, line := range eventLines {
+		output.WriteString(line + "\n")
 	}
 
 	return output.String()
