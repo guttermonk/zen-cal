@@ -67,7 +67,7 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.zen-cal;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.zen-cal;
               description = "The zen-cal package to use.";
             };
 
@@ -213,7 +213,7 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.zen-cal;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.zen-cal;
               description = "The zen-cal package to use.";
             };
           };
