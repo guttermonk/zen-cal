@@ -54,6 +54,7 @@ nix profile install github:beaterblank/zen-cal
     showLegend = true;
     showHolidays = false;
     showWeekNumbers = true;
+    eventIndicatorDays = 0;  # Days before event to show Waybar indicator
     events = [
       { date = "2025-01-15"; title = "Team Meeting"; description = "Weekly sync"; calendar = "work"; }
       { date = "2025-02-14"; title = "Valentine's Day"; calendar = "family"; }

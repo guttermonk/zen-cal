@@ -175,17 +175,25 @@
               description = "Default calendar for new events (use folder name, not display name).";
               example = "personal";
             };
+
+            eventIndicatorDays = lib.mkOption {
+              type = lib.types.int;
+              default = 0;
+              description = "Days before an event to show the Waybar indicator (0 = day of only).";
+              example = 1;
+            };
           };
 
           config = lib.mkIf cfg.enable {
             home.packages = [ cfg.package ];
 
-            xdg.configFile."zen-cal/zen-cal.conf" = lib.mkIf (cfg.settings != { } || cfg.calendars != { } || !cfg.showLegend || cfg.showHolidays || !cfg.showWeekNumbers || cfg.default_calendar != "") {
+            xdg.configFile."zen-cal/zen-cal.conf" = lib.mkIf (cfg.settings != { } || cfg.calendars != { } || !cfg.showLegend || cfg.showHolidays || !cfg.showWeekNumbers || cfg.default_calendar != "" || cfg.eventIndicatorDays != 0) {
               text = lib.concatStringsSep "\n" (
                 (lib.mapAttrsToList (name: value: "${name} = ${value}") cfg.settings)
                 ++ [ "show_legend = ${if cfg.showLegend then "true" else "false"}" ]
                 ++ [ "show_holidays = ${if cfg.showHolidays then "true" else "false"}" ]
                 ++ [ "show_week_numbers = ${if cfg.showWeekNumbers then "true" else "false"}" ]
+                ++ [ "event_indicator_days = ${toString cfg.eventIndicatorDays}" ]
                 ++ (lib.optional (cfg.default_calendar != "") "default_calendar = ${cfg.default_calendar}")
                 ++ (lib.mapAttrsToList (name: color: "calendar.${name} = ${color}") cfg.calendars)
               );
