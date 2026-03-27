@@ -209,10 +209,11 @@ text       = #cdd6f4
 weekends   = #f9e2af
 
 # Display options
-max_events        = 5
-show_legend       = true
-show_holidays     = true
-show_week_numbers = true
+max_events           = 5
+show_legend          = true
+show_holidays        = true
+show_week_numbers    = true
+event_indicator_days = 0    # Days before event to show Waybar indicator (0 = day of only)
 
 # Default calendar for new events (use folder name, not display name)
 default_calendar = personal
@@ -256,13 +257,14 @@ You can customize the navigation keys by adding keybind settings to your config 
 
 ### Display Options
 
-| Setting            | Default  | Description                                      |
-| ------------------ | -------- | ------------------------------------------------ |
-| `max_events`       | `5`      | Number of upcoming events to display             |
-| `show_legend`      | `true`   | Show calendar color legend below the calendar    |
-| `show_holidays`    | `false`  | Display US federal holidays                      |
-| `show_week_numbers`| `true`   | Show ISO week numbers in leftmost column         |
-| `default_calendar` | (empty)  | Default calendar for new events (folder name)    |
+| Setting               | Default  | Description                                      |
+| --------------------- | -------- | ------------------------------------------------ |
+| `max_events`          | `5`      | Number of upcoming events to display             |
+| `show_legend`         | `true`   | Show calendar color legend below the calendar    |
+| `show_holidays`       | `false`  | Display US federal holidays                      |
+| `show_week_numbers`   | `true`   | Show ISO week numbers in leftmost column         |
+| `default_calendar`    | (empty)  | Default calendar for new events (folder name)    |
+| `event_indicator_days`| `0`      | Days before an event to show the Waybar indicator (0 = day of only) |
 
 ### Calendars
 
@@ -522,7 +524,21 @@ The module shows:
 
 ### Format Icons
 
-You can use the `alt` field to show different icons based on whether there are events today:
+You can use the `alt` field to show different icons based on whether there are upcoming events.
+
+By default, the icon changes only on the day of an event. You can configure how many days in advance the indicator changes using `event_indicator_days` in your config:
+
+```toml
+# Show "has-events" icon starting 1 day before events (0 = day of only)
+event_indicator_days = 1
+```
+
+For example:
+- `0` - indicator shows only on the day of the event (default)
+- `1` - indicator shows the day before and day of
+- `7` - indicator shows up to a week before
+
+Waybar configuration example:
 
 ```json
 {

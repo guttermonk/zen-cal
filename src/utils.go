@@ -163,7 +163,7 @@ type calstyle struct {
 func newCalendarPage() calendarPage {
 	year, month, day := time.Now().Date()
 	keybinds := loadKeybinds()
-	maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar := loadDisplayConfig()
+	maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar, _ := loadDisplayConfig()
 	styles := getStyles()
 	_, _, _, text, _, _ := getPalette()
 
@@ -577,21 +577,22 @@ func (c *calendarPage) saveEvents() {
 	writer.Flush()
 }
 
-func loadDisplayConfig() (int, bool, bool, bool, string) {
-	maxEvents := 5          // default
-	showLegend := true      // default
-	showHolidays := false   // default
-	showWeekNumbers := true // default
-	defaultCalendar := ""   // default (empty means use first calendar)
+func loadDisplayConfig() (int, bool, bool, bool, string, int) {
+	maxEvents := 5            // default
+	showLegend := true        // default
+	showHolidays := false     // default
+	showWeekNumbers := true   // default
+	defaultCalendar := ""     // default (empty means use first calendar)
+	eventIndicatorDays := 0   // default (0 = day of event only)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar
+		return maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar, eventIndicatorDays
 	}
 	configPath := filepath.Join(homeDir, ".config", "zen-cal", "zen-cal.conf")
 	file, err := os.Open(configPath)
 	if err != nil {
-		return maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar
+		return maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar, eventIndicatorDays
 	}
 	defer file.Close()
 
@@ -624,10 +625,14 @@ func loadDisplayConfig() (int, bool, bool, bool, string) {
 			showWeekNumbers = val == "true" || val == "1" || val == "yes"
 		case "default_calendar":
 			defaultCalendar = val
+		case "event_indicator_days":
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				eventIndicatorDays = n
+			}
 		}
 	}
 
-	return maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar
+	return maxEvents, showLegend, showHolidays, showWeekNumbers, defaultCalendar, eventIndicatorDays
 }
 
 func loadCalendars() []Calendar {

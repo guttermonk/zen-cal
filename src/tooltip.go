@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,7 +26,7 @@ func RunTooltipMode() {
 	year, month, day := time.Now().Date()
 
 	// Load configuration
-	_, _, showHolidays, _, _ := loadDisplayConfig()
+	_, _, showHolidays, _, _, _ := loadDisplayConfig()
 	today, _, headings, text, weekends, _ := getPalette()
 
 	// Load calendars and events (match main app logic)
@@ -268,6 +271,44 @@ func getUpcomingEventsForTooltip(today time.Time, events []Event, holidays []Eve
 	return upcomingEvents
 }
 
+// loadEventIndicatorDays loads the event_indicator_days setting from config
+func loadEventIndicatorDays() int {
+	indicatorDays := 0 // default: only show indicator on day of event
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return indicatorDays
+	}
+	configPath := filepath.Join(homeDir, ".config", "zen-cal", "zen-cal.conf")
+	file, err := os.Open(configPath)
+	if err != nil {
+		return indicatorDays
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+
+		if key == "event_indicator_days" {
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				indicatorDays = n
+			}
+		}
+	}
+
+	return indicatorDays
+}
+
 // RunWaybarMode outputs JSON for Waybar custom module with text and tooltip
 func RunWaybarMode() {
 	year, month, day := time.Now().Date()
@@ -276,7 +317,8 @@ func RunWaybarMode() {
 	dateText := time.Now().Format("Mon 02")
 
 	// Load configuration and events to check if there are events today
-	_, _, showHolidays, _, _ := loadDisplayConfig()
+	_, _, showHolidays, _, _, _ := loadDisplayConfig()
+	indicatorDays := loadEventIndicatorDays()
 	calendars, vdirEvents := detectVdirsyncerCalendars()
 	var events []Event
 	if len(calendars) == 0 {
@@ -294,13 +336,15 @@ func RunWaybarMode() {
 
 	// Check if there are upcoming events
 	todayDate := time.Date(year, month, day, 0, 0, 0, 0, time.Local)
+	indicatorEndDate := todayDate.AddDate(0, 0, indicatorDays)
 	upcomingEvents := getUpcomingEventsForTooltip(todayDate, events, holidays, showHolidays, 3)
 
-	// Set alt field for format-icons - only show has-events if there are events TODAY
+	// Set alt field for format-icons - show has-events if there are events within indicator range
 	alt := "no-events"
 	for _, event := range upcomingEvents {
 		eventDate := time.Date(event.Date.Year(), event.Date.Month(), event.Date.Day(), 0, 0, 0, 0, time.Local)
-		if eventDate.Equal(todayDate) {
+		// Check if event is within the indicator range (today to today + indicatorDays)
+		if !eventDate.Before(todayDate) && !eventDate.After(indicatorEndDate) {
 			alt = "has-events"
 			break
 		}
@@ -319,7 +363,7 @@ func RunWaybarMode() {
 // buildTooltipString generates the Pango markup tooltip content
 func buildTooltipString(year int, month time.Month, day int) string {
 	// Load configuration
-	_, _, showHolidays, _, _ := loadDisplayConfig()
+	_, _, showHolidays, _, _, _ := loadDisplayConfig()
 	today, _, headings, text, weekends, _ := getPalette()
 
 	// Load calendars and events (match main app logic)
