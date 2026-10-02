@@ -239,6 +239,45 @@ calendar.family   = #a6e3a1 | Family
 
 You can adjust these values to match your preferred color scheme and keybinds in `~/.config/zen-cal/zen-cal.conf`.
 
+### Following the wallpaper
+
+A second file is layered over the first for the five chrome colors, if it
+exists:
+
+```
+${XDG_CACHE_HOME:-~/.cache}/wallust/colors-zen-cal.conf
+```
+
+It is for tools that recolor a desktop from the current wallpaper —
+[wallust](https://codeberg.org/explosion-mental/wallust), pywal — which
+re-extract a palette on every wallpaper change and have no business owning a
+config file that also holds your keybinds and calendar names. Point such a
+tool's template at that path and zen-cal follows along; it is launched fresh
+each time, so the next time you open it the colors are current. Set
+`ZEN_CAL_COLORS_OVERLAY` to read it from somewhere else.
+
+The format is the same `key = #rrggbb`, and the merge is per key, so an overlay
+naming only `today` leaves everything else as your config has it. An absent or
+empty overlay means "just use the config", which is what you want for any theme
+that is not wallpaper-derived.
+
+Only `today`, `today_text`, `headings`, `text`, `weekends` and `keys` are
+reachable this way. **Per-calendar colors deliberately are not** —
+`calendar.<name>` entries are read from `zen-cal.conf` alone. They are
+identities you tell apart at a glance, and the slots a wallpaper extractor
+fills are exactly where two of them are most likely to come out
+indistinguishable.
+
+A wallust template for it looks like:
+
+```
+today = {{color4}}
+today_text = {{color0}}
+headings = {{color5}}
+text = {{color7}}
+weekends = {{color3}}
+```
+
 ### Configurable Keybinds
 
 You can customize the navigation keys by adding keybind settings to your config file. Each keybind accepts a comma-separated list of keys:

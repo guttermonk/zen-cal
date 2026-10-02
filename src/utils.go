@@ -1059,27 +1059,44 @@ func getMonthInfo(month time.Month, year int) (time.Weekday, int, int) {
 	return firstWeekDay, week, lastDay
 }
 
-func getPalette() (today, today_text, headings, text, weekends, keys lipgloss.Color) {
-	today = lipgloss.Color("#f38ba8")      // Accent / highlight background
-	today_text = lipgloss.Color("#cdd6f4") // highlight text
-	headings = lipgloss.Color("#cba6f7")   // Subtle / dim text
-	text = lipgloss.Color("#cdd6f4")       // Main text / foreground
-	weekends = lipgloss.Color("#f9e2af")   // Special highlight (weekend / weekends)
-	keys = lipgloss.Color("#89dceb")       // Keybind highlight color
-	hexColor := regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return // Return defaults if home directory cannot be determined
+// paletteOverlayPath is the optional second colour file, layered over the one
+// in ~/.config. It is for tools that recolour a desktop from the current
+// wallpaper -- wallust, pywal -- which re-extract on every wallpaper change and
+// have no business owning a config file that also holds keybindings and
+// calendar names. Such a tool renders the overlay; zen-cal is launched fresh
+// each time, so the next invocation already has the new colours.
+//
+// ZEN_CAL_COLORS_OVERLAY moves it for a tool that writes somewhere else.
+func paletteOverlayPath() string {
+	if p := os.Getenv("ZEN_CAL_COLORS_OVERLAY"); p != "" {
+		return p
 	}
-	confFileName := "zen-cal.conf"
-	configPath := filepath.Join(homeDir, ".config", "zen-cal", confFileName)
-	file, err := os.Open(configPath)
+	cache := os.Getenv("XDG_CACHE_HOME")
+	if cache == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		cache = filepath.Join(homeDir, ".cache")
+	}
+	return filepath.Join(cache, "wallust", "colors-zen-cal.conf")
+}
+
+// readColorEntries returns the `key = #rrggbb` pairs in one file, ignoring
+// anything that is not a valid hex colour. A missing or unreadable file is the
+// normal state for the overlay and yields an empty map rather than an error.
+func readColorEntries(path string) map[string]string {
+	entries := map[string]string{}
+	if path == "" {
+		return entries
+	}
+	file, err := os.Open(path)
 	if err != nil {
-		return // Return defaults if config file doesn't exist
+		return entries
 	}
 	defer file.Close()
 
+	hexColor := regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -1092,10 +1109,43 @@ func getPalette() (today, today_text, headings, text, weekends, keys lipgloss.Co
 		}
 		key := strings.TrimSpace(parts[0])
 		val := strings.TrimSpace(parts[1])
-
 		if !hexColor.MatchString(val) {
 			continue // skip invalid hex codes
 		}
+		entries[key] = val
+	}
+	return entries
+}
+
+// getPalette reads the chrome colours from zen-cal.conf, then lets the overlay
+// win for any it also names.
+//
+// Only these six are reachable this way. Per-calendar colours are read
+// elsewhere, from zen-cal.conf alone, and deliberately stay there: they are
+// identities you tell apart at a glance, and the ANSI slots a wallpaper
+// extractor fills are exactly where two of them are most likely to come out
+// indistinguishable.
+func getPalette() (today, today_text, headings, text, weekends, keys lipgloss.Color) {
+	today = lipgloss.Color("#f38ba8")      // Accent / highlight background
+	today_text = lipgloss.Color("#cdd6f4") // highlight text
+	headings = lipgloss.Color("#cba6f7")   // Subtle / dim text
+	text = lipgloss.Color("#cdd6f4")       // Main text / foreground
+	weekends = lipgloss.Color("#f9e2af")   // Special highlight (weekend / weekends)
+	keys = lipgloss.Color("#89dceb")       // Keybind highlight color
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return // Return defaults if home directory cannot be determined
+	}
+	confFileName := "zen-cal.conf"
+	configPath := filepath.Join(homeDir, ".config", "zen-cal", confFileName)
+
+	colors := readColorEntries(configPath)
+	for key, val := range readColorEntries(paletteOverlayPath()) {
+		colors[key] = val
+	}
+
+	for key, val := range colors {
 		switch key {
 		case "today":
 			today = lipgloss.Color(val)
@@ -1110,10 +1160,6 @@ func getPalette() (today, today_text, headings, text, weekends, keys lipgloss.Co
 		case "keys":
 			keys = lipgloss.Color(val)
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return
 	}
 
 	return
