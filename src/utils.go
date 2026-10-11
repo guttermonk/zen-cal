@@ -215,6 +215,9 @@ func newCalendarPage() calendarPage {
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(text).
 			PaddingLeft(1).
+			// Mirrors the 1-column inset the calendar's day cells have on
+			// their left edge, so both outer margins come out equal
+			PaddingRight(1).
 			MarginLeft(2),
 		mode:               ModeNormal,
 		selectedEventIndex: 0,

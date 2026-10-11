@@ -124,9 +124,7 @@ func buildCal(c calendarPage) string {
 	calHeight := lipgloss.Height(calendarBlock)
 
 	// Fixed dimensions for stable layout
-	eventsWidth := 32 // Fixed content width for events
-	calBlockWidth := lipgloss.Width(calendarBlock)
-	fullWidth := calBlockWidth + eventsWidth + 5 // calendar + events + border/padding
+	eventsWidth := 32 // Maximum content width for events
 
 	// Fixed events height that always includes space for scroll indicators
 	// This prevents vertical jumping when indicators appear/disappear
@@ -140,57 +138,61 @@ func buildCal(c calendarPage) string {
 	// Build upcoming events list with scroll support
 	eventsBlock := buildEventsList(c, eventsHeight, eventsWidth)
 	
-	// Apply fixed dimensions to prevent legend jumping
+	// Cap the events column without padding it out: padding to a fixed width
+	// would leave invisible columns on the right edge that the legend and
+	// footer would then be centered against, making them look off-centre.
 	eventsBlock = lipgloss.NewStyle().
-		Width(eventsWidth).
 		MaxWidth(eventsWidth).
 		Height(eventsHeight).
 		Render(eventsBlock)
 
-	// Join calendar and events horizontally with fixed dimensions
-	mainContent := lipgloss.NewStyle().
-		Width(fullWidth).
-		Height(eventsHeight).
-		Render(lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			calendarBlock,
-			eventsBlock,
-		))
+	// Join calendar and events horizontally - width is whatever they occupy
+	mainContent := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		calendarBlock,
+		eventsBlock,
+	)
 
-	// Build legend (if enabled) - spans full width
+	// Build legend (if enabled)
 	legend := ""
 	if c.showLegend {
-		legend = buildLegend(c, fullWidth)
+		legend = buildLegend(c)
 	}
 
-	// Footer changes based on mode - spans full width
-	footerText := renderFooter(c)
-	footer := lipgloss.NewStyle().
+	// Footer changes based on mode
+	footer := renderFooter(c)
+
+	// Everything is centred against the widest of the three blocks, so the
+	// legend and footer line up with the ink above them rather than with
+	// reserved-but-empty space
+	fullWidth := lipgloss.Width(mainContent)
+	for _, w := range []int{lipgloss.Width(legend), lipgloss.Width(footer)} {
+		if w > fullWidth {
+			fullWidth = w
+		}
+	}
+
+	center := lipgloss.NewStyle().
 		Width(fullWidth).
-		Align(lipgloss.Center).
-		Render(footerText)
+		Align(lipgloss.Center)
 
 	// Build full layout with legend and footer at the bottom
 	var fullCal string
 	if c.showLegend && legend != "" {
-		fullCal = lipgloss.NewStyle().
-			Width(fullWidth).
-			Render(lipgloss.JoinVertical(
-				lipgloss.Left,
-				mainContent,
-				"",
-				legend,
-				footer,
-			))
+		fullCal = lipgloss.JoinVertical(
+			lipgloss.Left,
+			center.Render(mainContent),
+			"",
+			center.Render(legend),
+			center.Render(footer),
+		)
 	} else {
-		fullCal = lipgloss.NewStyle().
-			Width(fullWidth).
-			Render(lipgloss.JoinVertical(
-				lipgloss.Left,
-				mainContent,
-				"",
-				footer,
-			))
+		fullCal = lipgloss.JoinVertical(
+			lipgloss.Left,
+			center.Render(mainContent),
+			"",
+			center.Render(footer),
+		)
 	}
 
 	// Add popup overlay if in popup mode
@@ -214,7 +216,7 @@ func buildCal(c calendarPage) string {
 	}
 }
 
-func buildLegend(c calendarPage, width int) string {
+func buildLegend(c calendarPage) string {
 	labelStyle := lipgloss.NewStyle().
 		Faint(true)
 
@@ -229,12 +231,8 @@ func buildLegend(c calendarPage, width int) string {
 		items = append(items, fmt.Sprintf("%s %s", calDot, labelStyle.Render(cal.DisplayName)))
 	}
 
-	legend := strings.Join(items, "  ")
-
-	return lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center).
-		Render(legend)
+	// Centring is applied by the caller against the full layout width
+	return strings.Join(items, "  ")
 }
 
 func renderFooter(c calendarPage) string {
