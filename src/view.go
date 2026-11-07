@@ -217,8 +217,16 @@ func buildCal(c calendarPage) string {
 }
 
 func buildLegend(c calendarPage) string {
+	_, _, _, text, _, _ := getPalette()
+
+	// Foreground(text), where this had no foreground at all and only Faint.
+	// With nothing set, the labels took the terminal's own default colour and
+	// then dimmed it -- so they ignored the palette entirely and came out
+	// washed out beside their own dots. renderFooter directly below is the
+	// comparison: it asks for text and keys, which is why the second legend
+	// row stayed readable while the first did not.
 	labelStyle := lipgloss.NewStyle().
-		Faint(true)
+		Foreground(text)
 
 	// Build legend items for each calendar
 	var items []string
