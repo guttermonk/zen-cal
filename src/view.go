@@ -339,9 +339,15 @@ func buildEventsList(c calendarPage, maxHeight int, maxWidth int) string {
 	noSelectionPadding := "  " // Same width as indicator
 
 	// Scroll indicator style
+	//
+	// No Faint(). headings is already the subtle role, and where it comes
+	// from a palette it has usually been contrast-checked against the
+	// background to land somewhere readable. Faint dims whatever it is given
+	// on top of that, which spends the margin that check just bought: on a
+	// light theme "↓ 2 more below" came out the palest thing on the screen.
+	// Dimming is the colour's job here, not the attribute's.
 	scrollIndicatorStyle := lipgloss.NewStyle().
-		Foreground(headings).
-		Faint(true)
+		Foreground(headings)
 
 	var events strings.Builder
 

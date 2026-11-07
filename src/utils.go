@@ -742,11 +742,27 @@ func mergeCalendarConfigs(vdirCalendars []Calendar) []Calendar {
 		}
 	}
 	if !hasHolidays {
-		result = append(result, Calendar{
+		// The config override has to be applied here too, not just in the
+		// loop above. That loop only ever sees vdirsyncer-detected calendars,
+		// and holidays is not one -- it is synthesised, having no CalDAV
+		// source to be detected from. So `calendar.holidays = <colour>` was
+		// read into configMap and then never consulted, and the dot, the
+		// holiday day numbers and the date line of every holiday event all
+		// stayed this hardcoded pale yellow whatever the config said.
+		holidays := Calendar{
 			Name:        "holidays",
 			DisplayName: "Holidays",
 			Color:       lipgloss.Color("#f9e2af"),
-		})
+		}
+		if configCal, ok := configMap["holidays"]; ok {
+			if configCal.Color != "" {
+				holidays.Color = configCal.Color
+			}
+			if configCal.DisplayName != "" && configCal.DisplayName != configCal.Name {
+				holidays.DisplayName = configCal.DisplayName
+			}
+		}
+		result = append(result, holidays)
 	}
 
 	return result
@@ -1250,8 +1266,17 @@ func getStyles() calstyle {
 			Bold(true),
 
 		// Selected day (when navigating)
+		//
+		// today_text, not text. Both of the others are page-level roles meant
+		// to be read against the background, so pairing them put dark-on-dark
+		// in the one cell that has a fill behind it: the selected day number
+		// vanished into its own highlight. today_text is the role for text
+		// sitting on an accent -- todayStyle just below has always used it
+		// over `today` for exactly this reason -- and it stays legible in
+		// both modes, because the palette swaps which end of the ramp it
+		// comes from.
 		selectedStyle: cellBase.
-			Foreground(text).
+			Foreground(today_text).
 			Background(headings).
 			Bold(true),
 
