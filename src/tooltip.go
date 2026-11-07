@@ -28,6 +28,7 @@ func RunTooltipMode() {
 	// Load configuration
 	_, _, showHolidays, _, _, _ := loadDisplayConfig()
 	today, _, headings, text, weekends, _ := getPalette()
+	statusFree, _ := getStatusPalette()
 
 	// Load calendars and events (match main app logic)
 	calendars, vdirEvents := detectVdirsyncerCalendars()
@@ -81,7 +82,7 @@ func RunTooltipMode() {
 			// Free/Busy indicator
 			fbStr := ""
 			if event.FreeBusy == StatusFree {
-				fbStr = " <span foreground=\"#a6e3a1\">(Free)</span>"
+				fbStr = fmt.Sprintf(" <span foreground=\"%s\">(Free)</span>", statusFree)
 			}
 
 			// Holiday emoji
@@ -365,6 +366,7 @@ func buildTooltipString(year int, month time.Month, day int) string {
 	// Load configuration
 	_, _, showHolidays, _, _, _ := loadDisplayConfig()
 	today, _, headings, text, weekends, _ := getPalette()
+	statusFree, _ := getStatusPalette()
 
 	// Load calendars and events (match main app logic)
 	calendars, vdirEvents := detectVdirsyncerCalendars()
@@ -415,7 +417,7 @@ func buildTooltipString(year int, month time.Month, day int) string {
 
 			fbStr := ""
 			if event.FreeBusy == StatusFree {
-				fbStr = " <span foreground=\"#a6e3a1\">(Free)</span>"
+				fbStr = fmt.Sprintf(" <span foreground=\"%s\">(Free)</span>", statusFree)
 			}
 
 			prefix := ""

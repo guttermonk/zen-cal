@@ -1168,6 +1168,46 @@ func getPalette() (today, today_text, headings, text, weekends, keys lipgloss.Co
 	return
 }
 
+// Free/Busy status colours, read the same way as the six above.
+//
+// Kept out of getPalette rather than added to it because two more positional
+// returns would mean editing all twelve of its call sites to add two more
+// blanks, and because these are semantic rather than structural: green reads
+// as "nothing booked here" and red as "something is", which is a different
+// kind of choice from "what colour is a heading".
+//
+// Overridable for the same reason the others are. The defaults are
+// Catppuccin, and on a light palette a pale mint and a pale pink on
+// near-white are not text anyone can read -- which is what they were, in
+// four places, before this existed. Set `free` and `busy` in zen-cal.conf to
+// palette-derived values; the overlay file wins over it, as above.
+func getStatusPalette() (free, busy lipgloss.Color) {
+	free = lipgloss.Color("#a6e3a1")
+	busy = lipgloss.Color("#f38ba8")
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return // Defaults, if the home directory cannot be determined
+	}
+	configPath := filepath.Join(homeDir, ".config", "zen-cal", "zen-cal.conf")
+
+	colors := readColorEntries(configPath)
+	for key, val := range readColorEntries(paletteOverlayPath()) {
+		colors[key] = val
+	}
+
+	for key, val := range colors {
+		switch key {
+		case "free":
+			free = lipgloss.Color(val)
+		case "busy":
+			busy = lipgloss.Color(val)
+		}
+	}
+
+	return
+}
+
 func getStyles() calstyle {
 	today, today_text, headings, text, weekends, _ := getPalette()
 

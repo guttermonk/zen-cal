@@ -310,6 +310,7 @@ func buildEventsList(c calendarPage, maxHeight int, maxWidth int) string {
 	upcomingIndices := c.GetUpcomingEventsWithIndices()
 
 	_, _, headings, text, _, _ := getPalette()
+	statusFree, statusBusy := getStatusPalette()
 
 	// Title style for events section
 	eventTitleStyle := lipgloss.NewStyle().
@@ -557,7 +558,12 @@ func buildEventsList(c calendarPage, maxHeight int, maxWidth int) string {
 			eventBlock.WriteByte('\n')
 
 			// Format: time (or All-day)
-			timeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#a6adc8"))
+			//
+			// headings, the same subtle-text role the scroll indicators above
+			// and the tooltip's own time strings already use. This was a
+			// hardcoded #a6adc8 -- Catppuccin's subtext0, pale by design and
+			// invisible once the palette underneath it went light.
+			timeStyle := lipgloss.NewStyle().Foreground(headings)
 			var timeStr string
 			if event.AllDay {
 				timeStr = "All-day"
@@ -572,10 +578,10 @@ func buildEventsList(c calendarPage, maxHeight int, maxWidth int) string {
 			var freeBusyStr string
 			if event.FreeBusy == StatusFree {
 				freeBusyStr = "Free"
-				freeBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1"))
+				freeBusyStyle = lipgloss.NewStyle().Foreground(statusFree)
 			} else {
 				freeBusyStr = "Busy"
-				freeBusyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8"))
+				freeBusyStyle = lipgloss.NewStyle().Foreground(statusBusy)
 			}
 
 			eventBlock.WriteString(timeStyle.Render(timeStr))
